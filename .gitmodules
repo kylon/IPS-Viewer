@@ -1,0 +1,3 @@
+[submodule "3rdparty/QHexView"]
+	path = 3rdparty/QHexView
+	url = https://github.com/virinext/QHexView
