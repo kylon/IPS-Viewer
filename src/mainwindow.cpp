@@ -1,32 +1,76 @@
+/*
+ * This file is part of IPSviewer.
+ * Copyright (C) 2025 kylon
+ *
+ * IPSviewer is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * IPSviewer is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 #include <QFileDialog>
 #include <QMessageBox>
-#include <QApplication>
-#include <QLabel>
+#include <QHexView/model/buffer/qmemoryrefbuffer.h>
 
 #include "mainwindow.h"
 #include "../ui/ui_mainwindow.h"
-#include "rleRecord.h"
-#include "record.h"
+#include "RLERecord.h"
+
+MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow) {
+    ui->setupUi(this);
+
+    const QAction *menuOpenIps {ui->menuFile->actions().at(0)};
+    const QAction *menuAbout {ui->menubar->addAction("About")};
+
+    patchView = new QHexView();
+    truncOffTx = new QLabel("-");
+    patchCountTx = new QLabel("0");
+    rleCountTx = new QLabel("0");
+    totalCountTx = new QLabel("0");
+
+    patchView->setMinimumSize(630, 450);
+    ui->patchList->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    ui->statusbar->addPermanentWidget(new QLabel("Truncate offset:"));
+    ui->statusbar->addPermanentWidget(truncOffTx, 1); // cheating here
+    ui->statusbar->addPermanentWidget(new QLabel("Patches:"));
+    ui->statusbar->addPermanentWidget(patchCountTx);
+    ui->statusbar->addPermanentWidget(new QLabel("| RLE:"));
+    ui->statusbar->addPermanentWidget(rleCountTx);
+    ui->statusbar->addPermanentWidget(new QLabel("| Total:"));
+    ui->statusbar->addPermanentWidget(totalCountTx);
+
+    QObject::connect(menuOpenIps, &QAction::triggered, this, &MainWindow::onOpenIpsPatch);
+    QObject::connect(menuAbout, &QAction::triggered, this, &MainWindow::onAbout);
+    QObject::connect(ui->patchList, &QTableWidget::itemDoubleClicked, this, &MainWindow::onTableItemDblClick);
+}
+
+MainWindow::~MainWindow() {
+    delete patchView;
+    delete ui;
+}
 
 void MainWindow::onOpenIpsPatch() {
-    QString ipsPath { QFileDialog::getOpenFileName(this, tr("Open IPS patch"), nullptr, tr("IPS patch (*.ips)")) };
+    const QString ipsPath {QFileDialog::getOpenFileName(this, QStringLiteral("Open IPS patch"), nullptr, QStringLiteral("IPS patch (*.ips)"))};
 
     if (ipsPath.isNull())
         return;
 
-    if (!ipsFile.isNull())
-        disconnect(ipsFile.data(), &IPS::ipsLoaded, this, &MainWindow::onIpsFileRead);
-
-    ipsFile = QSharedPointer<IPS>::create();
-
+    ipsFile.reset(new IPSV::IPS);
     clearTable();
-    connect(ipsFile.data(), &IPS::ipsLoaded, this, &MainWindow::onIpsFileRead);
+
+    QObject::connect(ipsFile.data(), &IPSV::IPS::ipsLoaded, this, &MainWindow::onIpsFileRead);
+
     ipsFile->loadIPS(ipsPath);
 
-    if (ipsFile->hasError()) {
-        QMessageBox::warning(this, tr("IPS viewer"), ipsFile->getError());
-        return;
-    }
+    if (ipsFile->hasError())
+        QMessageBox::warning(this, QStringLiteral("IPS viewer"), ipsFile->getError());
 }
 
 void MainWindow::onIpsFileRead() {
@@ -36,17 +80,17 @@ void MainWindow::onIpsFileRead() {
     quint32 idx = 0;
 
     if (ipsFile->hasError()) {
-        QMessageBox::warning(this, tr("invalid IPS patch"), ipsFile->getError());
+        QMessageBox::warning(this, QStringLiteral("invalid IPS patch"), ipsFile->getError());
         return;
     }
 
-    for (const QSharedPointer<IPSRecord::ipsRecord> &record: ipsFile->getRecords()) {
-        bool isRle = record->getSize() == 0;
-        quint32 sz = isRle ? dynamic_cast<IPSRecord::rleRecord *>(record.data())->getRleSize() : record->getSize();
-        QTableWidgetItem *off {new QTableWidgetItem("0x" + QString::number(record->getOffset(), 16))};
-        QTableWidgetItem *roff {new QTableWidgetItem("0x" + QString::number(record->getRecordOffset(), 16))};
-        QTableWidgetItem *size {new QTableWidgetItem(QString::number(sz))};
-        QTableWidgetItem *type {new QTableWidgetItem(isRle ? "RLE" : "PATCH")};
+    for (const QSharedPointer<IPSV::IPSRecord> &record: ipsFile->getRecords()) {
+        const bool isRle = record->getSize() == 0;
+        const quint32 sz = isRle ? dynamic_cast<IPSV::RLERecord *>(record.data())->getRleSize() : record->getSize();
+        QTableWidgetItem *off = new QTableWidgetItem(QString("0x%1").arg(QString::number(record->getOffset(), 16)));
+        QTableWidgetItem *roff = new QTableWidgetItem(QString("0x%1").arg(QString::number(record->getRecordOffset(), 16)));
+        QTableWidgetItem *size = new QTableWidgetItem(QString::number(sz));
+        QTableWidgetItem *type = new QTableWidgetItem(isRle ? "RLE" : "PATCH");
 
         table->insertRow(idx);
         table->setItem(idx, 0, roff);
@@ -56,8 +100,10 @@ void MainWindow::onIpsFileRead() {
 
         ++idx;
 
-        if (isRle) ++rleC;
-        else        ++patchC;
+        if (isRle)
+            ++rleC;
+        else
+            ++patchC;
     }
 
     patchCountTx->setText(QString::number(patchC));
@@ -70,14 +116,19 @@ void MainWindow::onIpsFileRead() {
         truncOffTx->setText("-");
 }
 
-void MainWindow::onTableItemDblClick(QTableWidgetItem *itm) {
-    QByteArray data = ipsFile->getRecords().at(itm->row()).data()->getData();
+void MainWindow::onTableItemDblClick(const QTableWidgetItem *itm) {
+    const QByteArray data = ipsFile->getRecords().at(itm->row()).data()->getData();
 
-    patchView->SetData(data);
+    if (patchViewDoc != nullptr)
+        patchViewDoc->deleteLater();
+
+    patchViewDoc = QHexDocument::fromMemory<QMemoryRefBuffer>(data);
+    patchView->setDocument(patchViewDoc);
+    patchView->setWindowTitle(QString("%1, %2 bytes").arg(itm->text()).arg(data.size()));
     patchView->show();
 }
 
-void MainWindow::clearTable() {
+void MainWindow::clearTable() const {
     QTableWidget *tb = ui->patchList;
 
     tb->clearSelection();
@@ -90,49 +141,6 @@ void MainWindow::clearTable() {
     totalCountTx->setText("0");
 }
 
-void MainWindow::onExitApp() {
-    QApplication::exit();
-}
-
 void MainWindow::onAbout() {
-    QMessageBox::information(this, tr("About"), tr("IPS Viewer v.1.0 @2021\n\nAuthor: kylon\n\nLicense: GPLv3"));
-}
-
-MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow) {
-    ui->setupUi(this);
-
-    QAction *menuOpenIps {ui->menuFile->actions().at(0)};
-    QAction *menuExitApp {ui->menuFile->actions().at(1)};
-    QAction *menuAbout {ui->menubar->addAction("About")};
-    QLabel *truncateOffsetLbl {new QLabel("Truncate offset:")};
-    QLabel *patchCountLbl {new QLabel("Patches:")};
-    QLabel *rleCountLbl {new QLabel("| RLE:")};
-    QLabel *totalCountLbl {new QLabel("| Total:")};
-
-    truncOffTx = new QLabel("-");
-    patchCountTx = new QLabel("0");
-    rleCountTx = new QLabel("0");
-    totalCountTx = new QLabel("0");
-
-    ui->patchList->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    ui->statusbar->addPermanentWidget(truncateOffsetLbl);
-    ui->statusbar->addPermanentWidget(truncOffTx, 1); // cheating here
-    ui->statusbar->addPermanentWidget(patchCountLbl);
-    ui->statusbar->addPermanentWidget(patchCountTx);
-    ui->statusbar->addPermanentWidget(rleCountLbl);
-    ui->statusbar->addPermanentWidget(rleCountTx);
-    ui->statusbar->addPermanentWidget(totalCountLbl);
-    ui->statusbar->addPermanentWidget(totalCountTx);
-
-    patchView = new PatchViewDialog(this);
-
-    connect(menuOpenIps, &QAction::triggered, this, &MainWindow::onOpenIpsPatch);
-    connect(menuExitApp, &QAction::triggered, this, &MainWindow::onExitApp);
-    connect(menuAbout, &QAction::triggered, this, &MainWindow::onAbout);
-    connect(ui->patchList, &QTableWidget::itemDoubleClicked, this, &MainWindow::onTableItemDblClick);
-}
-
-MainWindow::~MainWindow() {
-    delete patchView;
-    delete ui;
+    QMessageBox::information(this, QStringLiteral("About"), QStringLiteral("IPS Viewer 1.1 @2025 - kylon - GPLv3"));
 }

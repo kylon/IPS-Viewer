@@ -15,14 +15,26 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include <QApplication>
+#pragma once
 
-#include "mainwindow.h"
+#include <QByteArray>
 
-int main(int argc, char *argv[]) {
-    QApplication a(argc, argv);
-    MainWindow w;
+namespace IPSV {
+    class IPSRecord {
+    private:
+        qint64 recordOffset = 0;
 
-    w.show();
-    return a.exec();
+    public:
+        virtual ~IPSRecord() = default;
+
+        virtual quint32 getOffset() const = 0;
+        virtual quint32 getSize() const = 0;
+        virtual QByteArray getData() const = 0;
+        virtual void setOffset(quint32) = 0;
+        virtual void setSize(quint32) = 0;
+        virtual void setData(const QByteArray &) = 0;
+
+        void setRecordOffset(const qint64 roff) { recordOffset = roff; }
+        qint64 getRecordOffset() const { return recordOffset; }
+    };
 }
