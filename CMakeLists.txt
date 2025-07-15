@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.23)
 
-project(IPSviewer VERSION 1.1 LANGUAGES CXX)
-
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
+project(IPSviewer VERSION 2.0 LANGUAGES CXX)
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -18,14 +16,13 @@ set(QHEXVIEW_BUILD_EXAMPLE OFF)
 add_subdirectory(3rdparty/QHexView)
 
 set(PROJECT_SOURCES
-    src/IPSRecord.h
-    src/RLERecord.h
     src/Record.h
-    src/IPS.cpp
+    src/RLERecord.h
     src/IPS.h
+    src/IPS.cpp
     src/main.cpp
-    src/mainwindow.cpp
     src/mainwindow.h
+    src/mainwindow.cpp
 
     ui/mainwindow.ui
 )

@@ -17,26 +17,14 @@
  */
 #pragma once
 
-#include "IPSRecord.h"
+#include "Record.h"
 
 namespace IPSV {
-    class RLERecord final: public IPSRecord {
-    private:
-        quint32 _offset;
-        quint32 _size;
-        quint32 _rleSize;
-        QByteArray _value;
+    struct RLERecord final: Record {
+        quint16 rleSize;
 
-    public:
-        RLERecord(const quint32 off, const quint32 sz, const quint32 rleSz, const QByteArray &value) : _offset(off), _size(sz), _rleSize(rleSz), _value(value) {}
-
-        quint32 getOffset() const override { return _offset; }
-        quint32 getSize() const override { return _size; }
-        quint32 getRleSize() const { return _rleSize; }
-        QByteArray getData() const override { return _value; }
-        void setOffset(const quint32 off) override { _offset = off; }
-        void setSize(const quint32 sz) override { _size = sz; }
-        void setRleSize(const quint32 rSz) { _rleSize = rSz; }
-        void setData(const QByteArray &v) override { _value = v; }
+        RLERecord(const qint64 ipsOffset, const quint32 offset, const quint16 rleSize, const QByteArray &data): Record(ipsOffset, offset, 0, data) {
+            this->rleSize = rleSize;
+        }
     };
 }

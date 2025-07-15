@@ -46,10 +46,10 @@ private:
     QSharedPointer<IPSV::IPS> ipsFile;
 
     void clearTable() const;
+    void showRecords() const;
 
 private slots:
     void onOpenIpsPatch();
     void onAbout();
-    void onIpsFileRead();
     void onTableItemDblClick(const QTableWidgetItem *itm);
 };

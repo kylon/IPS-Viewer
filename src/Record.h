@@ -17,29 +17,20 @@
  */
 #pragma once
 
-#include "IPSRecord.h"
-
 namespace IPSV {
-    class Record final: public IPSRecord {
-    private:
-        quint32 offt;
-        quint32 sz;
-        QByteArray ba;
+    struct Record {
+        qint64 ipsOffset;
+        quint32 offset;
+        quint16 size;
+        QByteArray data;
 
-    public:
-        Record(const quint32 offset, const quint32 size, const QByteArray &data) {
-            offt = offset;
-            sz = size;
-            ba = data;
+        Record(const qint64 ipsOffset, const quint32 offset, const quint16 size, const QByteArray &data) {
+            this->ipsOffset = ipsOffset;
+            this->offset = offset;
+            this->size = size;
+            this->data = data;
         }
 
-        ~Record() override = default;
-
-        quint32 getOffset() const override { return offt; }
-        quint32 getSize() const override { return sz; }
-        QByteArray getData() const override { return ba; }
-        void setOffset(const quint32 offset) override { offt = offset; }
-        void setSize(const quint32 size) override { sz = size; }
-        void setData(const QByteArray &data) override { ba = data; }
+        virtual ~Record() = default;
     };
 }

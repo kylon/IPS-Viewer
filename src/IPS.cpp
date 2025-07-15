@@ -15,129 +15,120 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include <QFile>
-
 #include "IPS.h"
 #include "RLERecord.h"
-#include "Record.h"
 
 namespace IPSV {
-    void IPS::loadIPS(const QString &path) {
-        QByteArray header, eof, truncExt;
-        QFile ipsFile {path};
+    // credits: https://zerosoft.zophar.net/ips.php
+    quint32 IPS::getOffset(const QByteArray &offset) const {
+        if (offset.size() < 3)
+            return -1;
 
-        if (ipsFile.size() > maxFileSize) {
-            error = QString("Invalid IPS file!\n\nfile size: %1, max size: %2").arg(ipsFile.size(), maxFileSize);
-            return;
-        }
-
-        if (!ipsFile.open(QIODevice::ReadOnly)) {
-            error = ipsFile.errorString();
-            return;
-        }
-
-        header = ipsFile.read(IPSHeader.size());
-        if (header.size() < IPSHeader.size() || header.compare(IPSHeader) != 0) {
-            error = "Invalid IPS file! Wrong header";
-            return;
-        }
-
-        ipsFile.seek(ipsFile.size() - IPSEof.size());
-
-        eof = ipsFile.read(IPSEof.size());
-        if (eof.compare(IPSEof) != 0) {
-            ipsFile.seek(ipsFile.size() - (IPSEof.size() + truncateExtSize));
-
-            eof = ipsFile.read(IPSEof.size());
-            if (eof.size() < IPSEof.size() || eof.compare(IPSEof) != 0) {
-                error = "Invalid IPS file! Wrong EOF";
-                return;
-            }
-
-            // if we are here, this has truncate extension
-            truncExt = ipsFile.read(truncateExtSize);
-            if (truncExt.size() < truncateExtSize) {
-                error = "Invalid IPS file! Invalid extension size";
-                return;
-            }
-
-            setTruncateOffset(byte3ToUint(truncExt.at(0), truncExt.at(1), truncExt.at(2)));
-        }
-
-        ipsFile.seek(IPSHeader.size());
-        readRecords(ipsFile.readAll());
-        ipsFile.close();
-        emit ipsLoaded();
+        return ((static_cast<unsigned>(offset[0]) << 16) & 0x00FF0000) |
+                ((static_cast<unsigned>(offset[1]) << 8) & 0x0000FF00) |
+                (static_cast<unsigned>(offset[2]) & 0x000000FF);
     }
 
-    void IPS::readRecords(const QByteArray &file) {
-        const quint32 len = file.size() - IPSEof.size() - (truncateOffset != 0 ? truncateExtSize:0);
-        quint32 idx = 0;
+    // credits: https://zerosoft.zophar.net/ips.php
+    quint16 IPS::getSize(const QByteArray &size) const {
+        if (size.size() < 2)
+            return -1;
 
-        while (idx < len) {
-            const qint64 recordFileOffset = idx + IPSHeader.size();
-            RECORD_READ_STATE state = RECORD_READ_STATE::OFFSET;
-            int nextReadSz = recordOffsetSize;
-            QSharedPointer<IPSV::IPSRecord> record;
-            quint32 off, size, rleSize;
+        return ((static_cast<unsigned>(size[0]) << 8) & 0xFF00) |
+                (static_cast<unsigned>(size[1]) & 0x00FF);
+    }
 
-            while (true) {
-                if (idx+nextReadSz > len) {
-                    error = QString("invalid record at offset 0x%1!").arg(QString::number(recordFileOffset, 16));
-                    return;
-                }
+    bool IPS::isRealEof(const QFile &ips, const QByteArray &buf) const {
+        if (buf != "EOF")
+            return false;
 
-                switch (state) {
-                    case RECORD_READ_STATE::OFFSET: {
-                        off = byte3ToUint(file.at(idx), file.at(idx+1), file.at(idx+2));
+        return (ips.size() - ips.pos() <= 3);
+    }
 
-                        idx += nextReadSz;
-                        state = RECORD_READ_STATE::SIZE;
-                        nextReadSz = recordSize;
-                    }
-                        break;
-                    case RECORD_READ_STATE::SIZE: {
-                        size = byte2ToUint(file.at(idx), file.at(idx+1));
+    bool IPS::loadIPS(const QString &path) {
+        QFile ips {path};
 
-                        idx += nextReadSz;
-                        state = size == 0 ? RECORD_READ_STATE::RLE_SIZE : RECORD_READ_STATE::DATA;
-                        nextReadSz = size == 0 ? rleSize : 0;
-                    }
-                        break;
-                    case RECORD_READ_STATE::RLE_SIZE: {
-                         rleSize = byte2ToUint(file.at(idx), file.at(idx+1));
+        if (ips.size() > maxIPSSize) {
+            error = QString("Invalid IPS file!\n\nfile size: %1, max size: %2").arg(ips.size(), maxIPSSize);
+            return false;
+        }
 
-                         idx += nextReadSz;
-                         state = RECORD_READ_STATE::DATA;
-                         nextReadSz = rleValueSize;
-                    }
-                        break;
-                    case RECORD_READ_STATE::DATA: {
-                        if (size == 0) { // RLE
-                            record = QSharedPointer<IPSV::RLERecord>::create(off, size, rleSize, file.mid(idx, rleValueSize));
-                            idx += nextReadSz;
+        if (!ips.open(QIODevice::ReadOnly)) {
+            error = ips.errorString();
+            return false;
+        }
 
-                        } else {
-                            record = QSharedPointer<IPSV::Record>::create(off, size, file.mid(idx, size));
-                            idx += size;
-                        }
+        if (ips.read(5) != "PATCH") {
+            error = "Invalid IPS file! wrong header";
+            return false;
+        }
 
-                        state = RECORD_READ_STATE::END;
-                    }
-                        break;
-                    default: {
-                        error = QString("invalid RECORD_READ_STATE: %1!").arg(QString::number(static_cast<int>(state)));
-                        return;
+        while (!ips.atEnd()) {
+            const qint64 ipsOffset = ips.pos();
+            const QByteArray offset = ips.read(3);
+            QByteArray size;
+            quint32 offsetI;
+            quint16 sizeI;
+
+            if (isRealEof(ips, offset)) {
+                if (ips.size() - ips.pos() == 3) { // truncate extension
+                    const QByteArray truncate = ips.read(3);
+
+                    truncateOffset = getOffset(truncate);
+                    if (truncateOffset == -1) {
+                        error = QString("Failed to read truncate offset: read %1 of 3").arg(truncate.size());
+                        return false;
                     }
                 }
 
-                if (state == RECORD_READ_STATE::END) {
-                    record->setRecordOffset(recordFileOffset);
-                    recordList.append(record);
-                    break;
+                break;
+            }
+
+            size = ips.read(2);
+
+            offsetI = getOffset(offset);
+            if (offsetI == -1) {
+                error = QString("Failed to read record offset at offset %1").arg(ips.pos());
+                return false;
+            }
+
+            sizeI = getSize(size);
+            if (sizeI == -1) {
+                error = QString("Failed to read record size at offset %1").arg(ips.pos());
+                return false;
+            }
+
+            if (sizeI == 0) { // rle
+                const QByteArray rleSize = ips.read(2);
+                const quint16 rleSizeI = getSize(rleSize);
+                QByteArray value;
+
+                if (rleSizeI == -1) {
+                    error = QString("Failed to read rle size at offset %1").arg(ips.pos());
+                    return false;
                 }
+
+                value = ips.read(1);
+                if (value.isEmpty()) {
+                    error = QString("Failed to read rle value at offset %1").arg(ips.pos());
+                    return false;
+                }
+
+                recordList.append(QSharedPointer<RLERecord>::create(ipsOffset, offsetI, rleSizeI, value));
+
+            } else {
+                const QByteArray data = ips.read(sizeI);
+
+                if (data.size() != sizeI) {
+                    error = QString("Failed to read patch data, read %1 of %2").arg(data.size()).arg(sizeI);
+                    return false;
+                }
+
+                recordList.append(QSharedPointer<Record>::create(ipsOffset, offsetI, sizeI, data));
             }
         }
+
+        return true;
     }
 
     QString IPS::getError() {
@@ -145,18 +136,5 @@ namespace IPSV {
 
         error.clear();
         return ret;
-    }
-
-    // credits: https://zerosoft.zophar.net/ips.php
-    quint32 IPS::byte3ToUint(const char b1, const char b2, const char b3) const {
-        return ((static_cast<uint>(b1) << 16) & 0x00FF0000) |
-                ((static_cast<uint>(b2) << 8) & 0x0000FF00) |
-                (static_cast<uint>(b3) & 0x000000FF);
-    }
-
-    // credits: https://zerosoft.zophar.net/ips.php
-    quint32 IPS::byte2ToUint(const char b1, const char b2) const {
-        return ((static_cast<uint>(b1) << 8) & 0xFF00) |
-                (static_cast<uint>(b2) & 0x00FF);
     }
 }

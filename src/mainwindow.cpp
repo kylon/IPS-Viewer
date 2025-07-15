@@ -65,36 +65,29 @@ void MainWindow::onOpenIpsPatch() {
     ipsFile.reset(new IPSV::IPS);
     clearTable();
 
-    QObject::connect(ipsFile.data(), &IPSV::IPS::ipsLoaded, this, &MainWindow::onIpsFileRead);
-
-    ipsFile->loadIPS(ipsPath);
-
-    if (ipsFile->hasError())
+    if (!ipsFile->loadIPS(ipsPath))
         QMessageBox::warning(this, QStringLiteral("IPS viewer"), ipsFile->getError());
+    else
+        showRecords();
 }
 
-void MainWindow::onIpsFileRead() {
+void MainWindow::showRecords() const {
     QTableWidget *table = ui->patchList;
     quint32 patchC = 0;
     quint32 rleC = 0;
     quint32 idx = 0;
 
-    if (ipsFile->hasError()) {
-        QMessageBox::warning(this, QStringLiteral("invalid IPS patch"), ipsFile->getError());
-        return;
-    }
-
-    for (const QSharedPointer<IPSV::IPSRecord> &record: ipsFile->getRecords()) {
-        const bool isRle = record->getSize() == 0;
-        const quint32 sz = isRle ? dynamic_cast<IPSV::RLERecord *>(record.data())->getRleSize() : record->getSize();
-        QTableWidgetItem *off = new QTableWidgetItem(QString("0x%1").arg(QString::number(record->getOffset(), 16)));
-        QTableWidgetItem *roff = new QTableWidgetItem(QString("0x%1").arg(QString::number(record->getRecordOffset(), 16)));
+    for (const QSharedPointer<IPSV::Record> &record: ipsFile->getRecords()) {
+        const bool isRle = record->size == 0;
+        const quint32 sz = isRle ? record.dynamicCast<IPSV::RLERecord>()->rleSize : record->size;
+        QTableWidgetItem *ipsOfft = new QTableWidgetItem(QString("0x%1").arg(QString::number(record->ipsOffset, 16)));
+        QTableWidgetItem *offt = new QTableWidgetItem(QString("0x%1").arg(QString::number(record->offset, 16)));
         QTableWidgetItem *size = new QTableWidgetItem(QString::number(sz));
         QTableWidgetItem *type = new QTableWidgetItem(isRle ? "RLE" : "PATCH");
 
         table->insertRow(idx);
-        table->setItem(idx, 0, roff);
-        table->setItem(idx, 1, off);
+        table->setItem(idx, 0, ipsOfft);
+        table->setItem(idx, 1, offt);
         table->setItem(idx, 2, size);
         table->setItem(idx, 3, type);
 
@@ -117,7 +110,7 @@ void MainWindow::onIpsFileRead() {
 }
 
 void MainWindow::onTableItemDblClick(const QTableWidgetItem *itm) {
-    const QByteArray data = ipsFile->getRecords().at(itm->row()).data()->getData();
+    const QByteArray data = ipsFile->getRecords().at(itm->row())->data;
 
     if (patchViewDoc != nullptr)
         patchViewDoc->deleteLater();
@@ -142,5 +135,5 @@ void MainWindow::clearTable() const {
 }
 
 void MainWindow::onAbout() {
-    QMessageBox::information(this, QStringLiteral("About"), QStringLiteral("IPS Viewer 1.1 @2025 - kylon - GPLv3"));
+    QMessageBox::information(this, QStringLiteral("About"), QStringLiteral("IPS Viewer 2.0 @2025 - kylon - GPLv3"));
 }
