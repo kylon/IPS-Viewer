@@ -27,7 +27,7 @@
 namespace IPSV {
     class IPS final {
     private:
-        static constexpr size_t maxIPSSize = 134217728;
+        static constexpr qint64 maxIPSSize = 134217728;
         quint32 truncateOffset = 0;
         QList<QSharedPointer<Record>> recordList;
         QString error;
@@ -39,6 +39,7 @@ namespace IPSV {
     public:
         [[nodiscard]] quint32 getTruncateOffset() const { return truncateOffset; }
         [[nodiscard]] QList<QSharedPointer<Record>> getRecords() const { return recordList; }
+        [[nodiscard]] QByteArray getRecordData(const int idx) const { return recordList[idx]->data; }
 
         [[nodiscard]] bool loadIPS(const QString &path);
         [[nodiscard]] QString getError();

@@ -72,12 +72,13 @@ void MainWindow::onOpenIpsPatch() {
 }
 
 void MainWindow::showRecords() const {
+    const QList<QSharedPointer<IPSV::Record>> recordList = ipsFile->getRecords();
     QTableWidget *table = ui->patchList;
     quint32 patchC = 0;
     quint32 rleC = 0;
     quint32 idx = 0;
 
-    for (const QSharedPointer<IPSV::Record> &record: ipsFile->getRecords()) {
+    for (const QSharedPointer<IPSV::Record> &record: recordList) {
         const bool isRle = record->size == 0;
         const quint32 sz = isRle ? record.dynamicCast<IPSV::RLERecord>()->rleSize : record->size;
         QTableWidgetItem *ipsOfft = new QTableWidgetItem(QString("0x%1").arg(QString::number(record->ipsOffset, 16)));
@@ -101,7 +102,7 @@ void MainWindow::showRecords() const {
 
     patchCountTx->setText(QString::number(patchC));
     rleCountTx->setText(QString::number(rleC));
-    totalCountTx->setText(QString::number(ipsFile->getRecords().size()));
+    totalCountTx->setText(QString::number(recordList.size()));
 
     if (ipsFile->getTruncateOffset() != 0)
         truncOffTx->setText("0x" + QString::number(ipsFile->getTruncateOffset(), 16));
@@ -110,7 +111,7 @@ void MainWindow::showRecords() const {
 }
 
 void MainWindow::onTableItemDblClick(const QTableWidgetItem *itm) {
-    const QByteArray data = ipsFile->getRecords().at(itm->row())->data;
+    const QByteArray data = ipsFile->getRecordData(itm->row());
 
     if (patchViewDoc != nullptr)
         patchViewDoc->deleteLater();
