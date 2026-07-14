@@ -33,7 +33,7 @@ jobs:
           call "C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
           ninja -C build
-          copy build\PQHex.exe ${{github.workspace}}\IPSViewerWindows
+          copy build\IPSViewer.exe ${{github.workspace}}\IPSViewerWindows
           windeployqt6.exe --no-translations --no-quick-import --no-opengl-sw --no-compiler-runtime IPSViewerWindows\IPSViewer.exe
 
       - name: upload windows release
