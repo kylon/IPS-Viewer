@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+	<id>org.kylon.ipsvw</id>
+	<metadata_license>CC0-1.0</metadata_license>
+	<project_license>GPL-3.0</project_license>
+	<name>IPSViewer</name>
+	<summary>Multiplatform IPS patch viewer</summary>
+	<description>
+		<p>Multiplatform IPS patch viewer writtent in Qt.</p>
+	</description>
+	<launchable type="desktop-id">org.kylon.ipsvw.desktop</launchable>
+	<url type="homepage">https://github.com/kylon/IPS-Viewer</url>
+	<url type="bugtracker">https://github.com/kylon/IPS-Viewer/issues</url>
+	<url type="help">https://github.com/kylon/IPS-Viewer</url>
+	<provides>
+		<id>org.kylon.ipsvw.desktop</id>
+	</provides>
+	<categories>
+		<category>Utility</category>
+	</categories>
+	<developer id="org.ipsvw.kylon">
+		<name>kylon</name>
+	</developer>
+	<content_rating type="oars-1.1" />
+	<keywords>
+		<keyword translate="no">IPSViewer</keyword>
+		<keyword>ips</keyword>
+		<keyword>patches</keyword>
+	</keywords>
+	<screenshots>
+		<screenshot type="default"><image>https://raw.githubusercontent.com/kylon/IPS-Viewer/main/preview.png</image></screenshot>
+	</screenshots>
+</component>
