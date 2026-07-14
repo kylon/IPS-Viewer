@@ -1,0 +1,141 @@
+name: rolling release
+
+on:
+  push:
+    branches: [ "main" ]
+    paths: ['**.cpp', '**.h', 'CMakeLists.txt']
+
+  workflow_dispatch:
+
+jobs:
+  win_build:
+    runs-on: windows-latest
+
+    outputs:
+      win_release_pkg_id: ${{steps.win_release_zip.outputs.artifact-id}}
+
+    steps:
+      - uses: actions/checkout@main
+
+      - uses: jurplel/install-qt-action@v4.3.1
+        with:
+          version: '6.10.3'
+
+      - name: prepare release folder
+        run: |
+          mkdir "IPSViewerWindows"
+
+      - name: build
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
+          ninja -C build
+          copy build\PQHex.exe ${{github.workspace}}\IPSViewerWindows
+          windeployqt6.exe --no-translations --no-quick-import --no-opengl-sw --no-compiler-runtime IPSViewerWindows\IPSViewer.exe
+
+      - name: upload windows release
+        id: win_release_zip
+        uses: actions/upload-artifact@main
+        with:
+          name: IPSViewerWindows
+          path: IPSViewerWindows
+          retention-days: 1
+
+  linux_build:
+    runs-on: ubuntu-latest
+
+    outputs:
+      linux_appimg_id: ${{steps.linux_appimg.outputs.artifact-id}}
+
+    steps:
+      - uses: actions/checkout@main
+
+      - name: install missing libtiff5
+        run: |
+          wget https://archive.ubuntu.com/ubuntu/pool/main/t/tiff/libtiff5_4.3.0-6ubuntu0.13_amd64.deb
+          sudo apt install ./libtiff5_4.3.0-6ubuntu0.13_amd64.deb
+
+      - uses: jurplel/install-qt-action@v4.3.1
+        with:
+          version: '6.11.1'
+
+      - name: download linuxdeploy and plugins
+        run: |
+          wget -q --show-progress https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q --show-progress https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          curl -fsSLo linuxdeploy-plugin-checkrt.sh https://github.com/darealshinji/linuxdeploy-plugin-checkrt/releases/download/continuous/linuxdeploy-plugin-checkrt.sh
+          chmod +x linuxdeploy-plugin-checkrt.sh
+          chmod +x linuxdeploy-*.AppImage
+
+      - name: build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          make -C build -j`nproc`
+
+      - name: prepare appimage
+        run: |
+          mkdir -p AppDir/usr/share/metainfo
+          mkdir AppDir/usr/bin
+          cp build/IPSViewer AppDir/usr/bin
+          cp Resources/linux/appimage/org.kylon.ipsvw.appdata.xml AppDir/usr/share/metainfo
+
+      - name: make appimage
+        run: >
+          EXTRA_PLATFORM_PLUGINS=libqwayland.so
+          EXTRA_QT_PLUGINS="svg;wayland-decoration-client;wayland-graphics-integration-client;wayland-shell-integration;waylandcompositor"
+          ./linuxdeploy-x86_64.AppImage
+          -d Resources/linux/appimage/org.kylon.ipsvw.desktop
+          -i Resources/linux/appimage/IPSViewer.png
+          --exclude-library=libwayland-client.so*
+          --appdir AppDir
+          --plugin qt
+          --plugin checkrt
+          --output appimage
+
+      - name: upload appimage
+        id: linux_appimg
+        uses: actions/upload-artifact@main
+        with:
+          name: IPSViewer-x86_64
+          path: IPSViewer-x86_64.AppImage
+          retention-days: 1
+
+  publish_release:
+    runs-on: ubuntu-latest
+    needs: [win_build, linux_build]
+
+    steps:
+      - uses: actions/checkout@main
+
+      - name: get release artifacts
+        uses: actions/download-artifact@main
+        with:
+          artifact-ids: ${{needs.win_build.outputs.win_release_pkg_id}},${{needs.linux_build.outputs.linux_appimg_id}}
+
+      - name: get release version
+        run: echo "REL_VER=$(date '+%Y%m%d')" >> $GITHUB_ENV
+
+      - name: prepare packages
+        run: |
+          zip -r -9 "IPSViewerWindows-$REL_VER.zip" IPSViewerWindows
+          mv IPSViewer-x86_64/IPSViewer-x86_64.AppImage IPSViewer-x86_64/"IPSViewer-x86_64-$REL_VER.AppImage"
+
+      - name: remove old release
+        env:
+          GH_TOKEN: ${{ secrets.GTK }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release delete $(gh release view -R "${{ github.server_url }}/${{ github.repository }}" --json tagName -q .tagName) --cleanup-tag -y
+        continue-on-error: true
+
+      - name: publish release
+        env:
+          GH_TOKEN: ${{ secrets.GTK }}
+          GH_REPO: ${{ github.repository }}
+        run: >
+          gh release create $(date +"%m%d%Y")
+          "IPSViewerWindows-$REL_VER.zip"
+          IPSViewer-x86_64/"IPSViewer-x86_64-$REL_VER.AppImage"
+          --draft=false
+          --latest
+          -t "IPSViewer rolling build"
