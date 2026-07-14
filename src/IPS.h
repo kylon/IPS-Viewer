@@ -19,7 +19,6 @@
 
 #include <QSharedPointer>
 #include <QString>
-#include <QList>
 #include <QFile>
 
 #include "Record.h"

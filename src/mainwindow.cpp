@@ -23,27 +23,29 @@
 #include "../ui/ui_mainwindow.h"
 #include "RLERecord.h"
 
+using namespace Qt::StringLiterals;
+
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent), ui(new Ui::MainWindow) {
     ui->setupUi(this);
 
     const QAction *menuOpenIps {ui->menuFile->actions().at(0)};
-    const QAction *menuAbout {ui->menubar->addAction("About")};
+    const QAction *menuAbout {ui->menubar->addAction(u"About"_s)};
 
     patchView = new QHexView();
-    truncOffTx = new QLabel("-");
-    patchCountTx = new QLabel("0");
-    rleCountTx = new QLabel("0");
-    totalCountTx = new QLabel("0");
+    truncOffTx = new QLabel(u"-"_s);
+    patchCountTx = new QLabel(u"0"_s);
+    rleCountTx = new QLabel(u"0"_s);
+    totalCountTx = new QLabel(u"0"_s);
 
     patchView->setMinimumSize(630, 450);
     ui->patchList->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    ui->statusbar->addPermanentWidget(new QLabel("Truncate offset:"));
+    ui->statusbar->addPermanentWidget(new QLabel(u"Truncate offset:"_s));
     ui->statusbar->addPermanentWidget(truncOffTx, 1); // cheating here
-    ui->statusbar->addPermanentWidget(new QLabel("Patches:"));
+    ui->statusbar->addPermanentWidget(new QLabel(u"Patches:"_s));
     ui->statusbar->addPermanentWidget(patchCountTx);
-    ui->statusbar->addPermanentWidget(new QLabel("| RLE:"));
+    ui->statusbar->addPermanentWidget(new QLabel(u"| RLE:"_s));
     ui->statusbar->addPermanentWidget(rleCountTx);
-    ui->statusbar->addPermanentWidget(new QLabel("| Total:"));
+    ui->statusbar->addPermanentWidget(new QLabel(u"| Total:"_s));
     ui->statusbar->addPermanentWidget(totalCountTx);
 
     QObject::connect(menuOpenIps, &QAction::triggered, this, &MainWindow::onOpenIpsPatch);
@@ -57,7 +59,7 @@ MainWindow::~MainWindow() {
 }
 
 void MainWindow::onOpenIpsPatch() {
-    const QString ipsPath {QFileDialog::getOpenFileName(this, QStringLiteral("Open IPS patch"), nullptr, QStringLiteral("IPS patch (*.ips)"))};
+    const QString ipsPath {QFileDialog::getOpenFileName(this, u"Open IPS patch"_s, nullptr, u"IPS patch (*.ips)"_s)};
 
     if (ipsPath.isNull())
         return;
@@ -66,7 +68,7 @@ void MainWindow::onOpenIpsPatch() {
     clearTable();
 
     if (!ipsFile->loadIPS(ipsPath))
-        QMessageBox::warning(this, QStringLiteral("IPS viewer"), ipsFile->getError());
+        QMessageBox::warning(this, u"IPS viewer"_s, ipsFile->getError());
     else
         showRecords();
 }
@@ -84,7 +86,7 @@ void MainWindow::showRecords() const {
         QTableWidgetItem *ipsOfft = new QTableWidgetItem(QString("0x%1").arg(QString::number(record->ipsOffset, 16)));
         QTableWidgetItem *offt = new QTableWidgetItem(QString("0x%1").arg(QString::number(record->offset, 16)));
         QTableWidgetItem *size = new QTableWidgetItem(QString::number(sz));
-        QTableWidgetItem *type = new QTableWidgetItem(isRle ? "RLE" : "PATCH");
+        QTableWidgetItem *type = new QTableWidgetItem(isRle ? u"RLE"_s : u"PATCH"_s);
 
         table->insertRow(idx);
         table->setItem(idx, 0, ipsOfft);
@@ -107,7 +109,7 @@ void MainWindow::showRecords() const {
     if (ipsFile->getTruncateOffset() != 0)
         truncOffTx->setText("0x" + QString::number(ipsFile->getTruncateOffset(), 16));
     else
-        truncOffTx->setText("-");
+        truncOffTx->setText(u"-"_s);
 }
 
 void MainWindow::onTableItemDblClick(const QTableWidgetItem *itm) {
@@ -129,12 +131,12 @@ void MainWindow::clearTable() const {
     tb->clearContents();
     tb->setRowCount(0);
 
-    truncOffTx->setText("-");
-    patchCountTx->setText("0");
-    rleCountTx->setText("0");
-    totalCountTx->setText("0");
+    truncOffTx->setText(u"-"_s);
+    patchCountTx->setText(u"0"_s);
+    rleCountTx->setText(u"0"_s);
+    totalCountTx->setText(u"0"_s);
 }
 
 void MainWindow::onAbout() {
-    QMessageBox::information(this, QStringLiteral("About"), QStringLiteral("IPS Viewer 2.0 @2025 - kylon - GPLv3"));
+    QMessageBox::information(this, u"About"_s, u"IPS Viewer 2.0 @2025 - kylon - GPLv3"_s);
 }

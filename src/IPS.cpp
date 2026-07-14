@@ -19,6 +19,8 @@
 #include "RLERecord.h"
 
 namespace IPSV {
+    using namespace Qt::StringLiterals;
+
     // credits: https://zerosoft.zophar.net/ips.php
     quint32 IPS::getOffset(const QByteArray &offset) const {
         if (offset.size() < 3)
@@ -59,7 +61,7 @@ namespace IPSV {
         }
 
         if (ips.read(5) != "PATCH") {
-            error = "Invalid IPS file! wrong header";
+            error = u"Invalid IPS file! wrong header"_s;
             return false;
         }
 
