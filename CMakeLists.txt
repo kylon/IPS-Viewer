@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.23)
 
-project(IPSviewer VERSION 2.1 DESCRIPTION "Multiplatform IPS patch viewer" LANGUAGES CXX)
+project(IPSViewer VERSION 2.1 DESCRIPTION "Multiplatform IPS patch viewer" LANGUAGES CXX)
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
