@@ -138,5 +138,5 @@ void MainWindow::clearTable() const {
 }
 
 void MainWindow::onAbout() {
-    QMessageBox::information(this, u"About"_s, u"IPS Viewer 2.0 @2025 - kylon - GPLv3"_s);
+    QMessageBox::information(this, u"About"_s, u"IPS Viewer 2.1 - kylon - GPLv3"_s);
 }
