@@ -16,6 +16,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@main
+        with:
+          submodules: 'true'
 
       - uses: jurplel/install-qt-action@v4.3.1
         with:
@@ -50,6 +52,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@main
+        with:
+          submodules: 'true'
 
       - name: install missing libtiff5
         run: |
